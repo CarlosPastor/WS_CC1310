@@ -5,8 +5,8 @@
 // MCP9808
 #define MCP9808_I2C_ADR             0x18
 
-#define TMP007_ACTUAL_TEMP          0x0005      /* Temperatura instantanea */
-#define TMP007_ACTUAL_TEMP_LEN      2           /* Object Temp Result Register */
+#define MCP9808_ACTUAL_TEMP          0x0005      /* Temperatura instantanea */
+#define MCP9808_ACTUAL_TEMP_LEN      2           /* Object Temp Result Register */
 
 
 // TSL2591
