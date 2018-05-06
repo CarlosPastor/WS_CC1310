@@ -28,6 +28,8 @@ int16_t VELM6070_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx
 uint8_t TSL2561_INIT(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx);
 int16_t TSL2561_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx);
 
+uint8_t TSL2591_INIT(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx);
+int16_t TSL2591_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx);
 
 
 //////////////////////////////////
@@ -199,20 +201,23 @@ void *mainThread(void *arg0)
     //Inicializaciones
     VELM6070_INIT(i2c, &i2cTransaction, txBuffer, rxBuffer);
     TSL2561_INIT(i2c, &i2cTransaction, txBuffer, rxBuffer);
-
+    TSL2591_INIT(i2c, &i2cTransaction, txBuffer, rxBuffer);
 
     /* Take 50 samples and print them out onto the console */
     for (i = 0; i < 50; i++) {
 
         D0 = VELM6070_READ(i2c, &i2cTransaction, txBuffer, rxBuffer);
-        Display_printf(display, 0, 0, "UV: %d (C)\n", D0);
+        Display_printf(display, 0, 0, "VELM6070 UV: %d (C)\n", D0);
 
 
         D0 = TSL2561_READ(i2c, &i2cTransaction, txBuffer, rxBuffer);
-        Display_printf(display, 0, 0, "IR+VS: %d (C)\n", D0);
+        Display_printf(display, 0, 0, "TSL2561 IR+VS: %d (C)\n", D0);
+
+        D0 = TSL2591_READ(i2c, &i2cTransaction, txBuffer, rxBuffer);
+        Display_printf(display, 0, 0, "TSL2591 IR+VS: %d (C)\n", D0);
 
         D0 = MCP9808_READ(i2c, &i2cTransaction, txBuffer, rxBuffer);
-        Display_printf(display, 0, 0, "temp: %d (C)\n", D0);
+        Display_printf(display, 0, 0, "MCP9808 TEMPERATURE: %d (C)\n", D0);
 
         /* Sleep for 1 second */
         sleep(1);
@@ -348,6 +353,67 @@ int16_t TSL2561_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx,
     return(temp);
 
 }
+
+uint8_t TSL2591_INIT(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx)
+{
+
+    //TSL2591//////////////////////////////////////////////////////////////////////////////////////////
+
+    tx[0] = TSL2591_CMMND + TSL2591_ENABLE;
+    tx[1] = TSL2591_ENABLE_VALUE;
+    i2c->slaveAddress = TSL2591_I2C_ADR;
+    i2c->writeBuf = tx;
+    i2c->writeCount = 1 + TSL2591_ENABLE_LEN;
+    i2c->readBuf = rx;
+    i2c->readCount = 0;
+
+    if(!(I2C_transfer(i2c_periph, i2c)))
+        Display_printf(display, 0, 0, "I2C Bus fault\n");
+    else
+        Display_printf(display, 0, 0, "I2C Config OK\n");
+
+
+    return (NULL);
+
+}
+
+int16_t TSL2591_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx)
+{
+
+    volatile int16_t temp;
+
+    //TSL2591//////////////////////////////////////////////////////////////////////////////////////////
+    tx[0] = TSL2591_CMMND + TSL2591_C0DATAL;
+    i2c->slaveAddress = TSL2591_I2C_ADR;
+    i2c->writeBuf = tx;
+    i2c->writeCount = 1;
+    i2c->readBuf = rx;
+    i2c->readCount = TSL2591_C0DATAL_LEN;
+
+    if (I2C_transfer(i2c_periph, i2c))
+    {
+        ;
+    }
+    else
+    {
+        Display_printf(display, 0, 0, "I2C Bus fault\n");
+        return 0;
+    }
+
+    temp = rx[1];
+    // desplazamiento al bit de arriba
+    temp = temp << 8;
+    temp |= rx[0];
+
+    temp = rx[3];
+    // desplazamiento al bit de arriba
+    temp = temp << 8;
+    temp |= rx[2];
+
+    return(temp);
+
+}
+
 
 int16_t MCP9808_READ(I2C_Handle i2c_periph, I2C_Transaction * i2c, uint8_t * tx, uint8_t * rx)
 {
