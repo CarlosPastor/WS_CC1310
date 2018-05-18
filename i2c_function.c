@@ -189,17 +189,21 @@ void *mainThread(void *arg0)
     /* Take 50 samples and print them out onto the console */
     for (i = 0; i < 50; i++) {
 
-        D0 = VELM6070_READ(&I2C_vars, &sensor_data);
-        Display_printf(display, 0, 0, "VELM6070 UV: %d (C)\n", D0);
+        VELM6070_READ(&I2C_vars, &sensor_data);
+        TSL2561_READ(&I2C_vars, &sensor_data);
+        TSL2591_READ(&I2C_vars, &sensor_data);
+        MCP9808_READ(&I2C_vars, &sensor_data);
 
-        D0 = TSL2561_READ(&I2C_vars, &sensor_data);
-        Display_printf(display, 0, 0, "TSL2561 IR+VS: %d (C)\n", D0);
+        // sensores de temperatura
+        Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ")
+        Display_printf(display, 0, 0, "\tMCP9808 TEMPERATURE: %d C \n", sensor_data.MCP9808.temp);
+        // sensores de luminosidad
+        Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %d lx \n", sensor_data.TSL2561.lux);
+        Display_printf(display, 0, 0, "\tTSL2591 Intensidad de luz: %d lx \n", sensor_data.TSL2591.lux);
+        Display_printf(display, 0, 0, "\tMCP9808 Factor de radiacion UV: %d (C)\n", sensor_data.VELM6070.lux_UV);
+        // otros....
 
-        D0 = TSL2591_READ(&I2C_vars, &sensor_data);
-        Display_printf(display, 0, 0, "TSL2591 IR+VS: %d (C)\n", D0);
 
-        D0 = MCP9808_READ(&I2C_vars, &sensor_data);
-        Display_printf(display, 0, 0, "MCP9808 TEMPERATURE: %d (C)\n", D0);
 
         /* Sleep for 1 second */
         sleep(1);
@@ -264,6 +268,7 @@ int16_t VELM6070_READ(I2C_vars * i2c, sensor_data * sensor_data)
     {
         temp |= i2c->rx[0];
         sensor_data->VELM6070.lux_UV = temp;
+
         return (NULL);
     }
     else
