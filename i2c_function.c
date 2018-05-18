@@ -198,8 +198,11 @@ void *mainThread(void *arg0)
         Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ");
         Display_printf(display, 0, 0, "\tMCP9808 TEMPERATURE: %d C \n", sensor_data.MCP9808.temp);
         // sensores de luminosidad
-        Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %d lx \n", sensor_data.TSL2561.lux);
-        Display_printf(display, 0, 0, "\tTSL2591 Intensidad de luz: %d lx \n", sensor_data.TSL2591.lux);
+        Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %.3f lx \n", sensor_data.TSL2561.lux);
+
+        Display_printf(display, 0, 0, "\tTSL2591 Intensidad de luz: %.3f lx \n", sensor_data.TSL2591.lux);
+        Display_printf(display, 0, 0, "\tTSL2591 Irradiancia completa: %d \n", sensor_data.TSL2591.CH0);
+        Display_printf(display, 0, 0, "\tTSL2591 Irradiancia IR: %d \n", sensor_data.TSL2591.CH1);
         Display_printf(display, 0, 0, "\tMCP9808 Factor de radiacion UV: %d (C)\n", sensor_data.VELM6070.lux_UV);
         // otros....
 
@@ -386,19 +389,74 @@ int16_t TSL2591_READ(I2C_vars * i2c, sensor_data * sensor_data)
         return 0;
     }
 
+    // El canal 0 contiene la informacion de el espectro completo
+    //CH0 ADC low data byte
+    //CH0 ADC high data byte
+    // El canal 1 contiene la informacion IR unicamente
+    //CH1 ADC low data byte
+    //CH1 ADC high data byte
+    // Usando la combinacion de esta informacion se obtiene la iluminancia en luxes
+
+
+    // extraccion de los datos de cada canal:
+
+    // canal 0
     temp = i2c->rx[1];
     // desplazamiento al bit de arriba
     temp = temp << 8;
     temp |= i2c->rx[0];
 
+    sensor_data->TSL2591.CH0 = temp;
+
+    // canal 1
     temp = i2c->rx[3];
     // desplazamiento al bit de arriba
     temp = temp << 8;
     temp |= i2c->rx[2];
 
-    sensor_data->TSL2591.lux = temp;
+    sensor_data->TSL2591.CH1 = temp;
 
-    return(temp);
+    // Calculo de la ilumanancia
+
+    float TSL2591_LUX_DF    = 408.0F; ///< Lux cooefficient
+    float TSL2591_LUX_COEFB = 1.64F;  ///< CH0 coefficient
+    float TSL2591_LUX_COEFC = 0.59F;  ///< CH1 coefficient A
+    float TSL2591_LUX_COEFD = 0.86F;  ///< CH2 coefficient B
+
+    float    atime, again;
+    float    cpl, lux1, lux2, lux;
+    uint32_t chan0, chan1;
+
+    // Check for overflow conditions first
+    if ((sensor_data->TSL2591.CH0 == 0xFFFF) | (sensor_data->TSL2591.CH1 == 0xFFFF))
+    {
+      // Signal an overflow
+      return 0;
+    }
+
+    // Note: This algorithm is based on preliminary coefficients
+    // provided by AMS and may need to be updated in the future
+
+    atime = 100.0F;
+    again = 1.0F;
+
+    // cpl = (ATIME * AGAIN) / DF
+    cpl = (atime * again) / TSL2591_LUX_DF;
+
+    // Original lux calculation (for reference sake)
+    // lux1 = ( (float)ch0 - (TSL2591_LUX_COEFB * (float)ch1) ) / cpl;
+    // lux2 = ( ( TSL2591_LUX_COEFC * (float)ch0 ) - ( TSL2591_LUX_COEFD * (float)ch1 ) ) / cpl;
+    // lux = lux1 > lux2 ? lux1 : lux2;
+
+    // Alternate lux calculation 1
+    // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
+    lux = ( ((float)sensor_data->TSL2591.CH0 - (float)sensor_data->TSL2591.CH1 )) * (1.0F - ((float)sensor_data->TSL2591.CH1/(float)sensor_data->TSL2591.CH0) ) / cpl;
+
+    // Alternate lux calculation 2
+    //lux = ( (float)ch0 - ( 1.7F * (float)ch1 ) ) / cpl;
+    sensor_data->TSL2591.lux = lux;
+
+    return 0;
 
 }
 
@@ -447,7 +505,7 @@ int16_t MCP9808_READ(I2C_vars * i2c, sensor_data * sensor_data)
         temp = (i2c->rx[0] * 16 + i2c->rx[1]  / 16);
     //Temperature = Ambient Temperature (°C)
 
-    sensor_data->MCP9808.temp=temp;
+    sensor_data->MCP9808.temp = temp;
 
     return(temp);
 
