@@ -195,7 +195,7 @@ void *mainThread(void *arg0)
         MCP9808_READ(&I2C_vars, &sensor_data);
 
         // sensores de temperatura
-        Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ")
+        Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ");
         Display_printf(display, 0, 0, "\tMCP9808 TEMPERATURE: %d C \n", sensor_data.MCP9808.temp);
         // sensores de luminosidad
         Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %d lx \n", sensor_data.TSL2561.lux);
@@ -446,6 +446,8 @@ int16_t MCP9808_READ(I2C_vars * i2c, sensor_data * sensor_data)
     else //TA ³ 0°C
         temp = (i2c->rx[0] * 16 + i2c->rx[1]  / 16);
     //Temperature = Ambient Temperature (°C)
+
+    sensor_data->MCP9808.temp=temp;
 
     return(temp);
 
