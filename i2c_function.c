@@ -319,7 +319,7 @@ int16_t TSL2561_READ(I2C_vars * i2c, sensor_data * sensor_data)
     i2c->i2cTransaction.writeBuf = i2c->tx;
     i2c->i2cTransaction.writeCount = 1;
     i2c->i2cTransaction.readBuf = i2c->rx;
-    i2c->i2cTransaction.readCount = TSL2561_C0DATAL_LEN;
+    i2c->i2cTransaction.readCount = 2;
 
     if (I2C_transfer(i2c->i2c, &i2c->i2cTransaction))
     {
@@ -331,15 +331,6 @@ int16_t TSL2561_READ(I2C_vars * i2c, sensor_data * sensor_data)
         return (NULL);
     }
 
-    // El canal 0 contiene la informacion de el espectro completo
-    //CH0 ADC low data byte
-    //CH0 ADC high data byte
-    // El canal 1 contiene la informacion IR unicamente
-    //CH1 ADC low data byte
-    //CH1 ADC high data byte
-    // Usando la combinacion de esta informacion se obtiene la iluminancia en luxes
-
-
     // extraccion de los datos de cada canal:
 
     // canal 0
@@ -350,13 +341,40 @@ int16_t TSL2561_READ(I2C_vars * i2c, sensor_data * sensor_data)
 
     sensor_data->TSL2561.CH0 = temp;
 
+    //TSL2561//////////////////////////////////////////////////////////////////////////////////////////
+    i2c->tx[0] = TSL2561_CMMND + TSL2561_C1DATAL;
+    i2c->i2cTransaction.slaveAddress = TSL2561_I2C_ADR;
+    i2c->i2cTransaction.writeBuf = i2c->tx;
+    i2c->i2cTransaction.writeCount = 1;
+    i2c->i2cTransaction.readBuf = i2c->rx;
+    i2c->i2cTransaction.readCount = 2;
+
+    if (I2C_transfer(i2c->i2c, &i2c->i2cTransaction))
+    {
+        ;
+    }
+    else
+    {
+        Display_printf(display, 0, 0, "I2C Bus fault\n");
+        return (NULL);
+    }
+
     // canal 1
-    temp = i2c->rx[3];
+    temp = i2c->rx[1];
     // desplazamiento al bit de arriba
     temp = temp << 8;
-    temp |= i2c->rx[2];
+    temp |= i2c->rx[0];
 
     sensor_data->TSL2561.CH1 = temp;
+
+    // El canal 0 contiene la informacion de el espectro completo
+    //CH0 ADC low data byte
+    //CH0 ADC high data byte
+    // El canal 1 contiene la informacion IR unicamente
+    //CH1 ADC low data byte
+    //CH1 ADC high data byte
+    // Usando la combinacion de esta informacion se obtiene la iluminancia en luxes
+
 
     // T, FN and CL package values
     uint16_t TSL2561_LUX_K1T=(0x0040);  ///< 0.125 * 2^RATIO_SCALE
