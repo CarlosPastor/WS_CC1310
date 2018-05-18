@@ -198,12 +198,15 @@ void *mainThread(void *arg0)
         Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ");
         Display_printf(display, 0, 0, "\tMCP9808 TEMPERATURE: %d C \n", sensor_data.MCP9808.temp);
         // sensores de luminosidad
-        Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %.3f lx \n", sensor_data.TSL2561.lux);
+        Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %d lx \n", sensor_data.TSL2561.lux);
+        Display_printf(display, 0, 0, "\tTSL2561 Irradiancia completa: %d \n", sensor_data.TSL2561.CH0);
+        Display_printf(display, 0, 0, "\tTSL2561 Irradiancia IR: %d \n", sensor_data.TSL2561.CH1);
 
         Display_printf(display, 0, 0, "\tTSL2591 Intensidad de luz: %.3f lx \n", sensor_data.TSL2591.lux);
         Display_printf(display, 0, 0, "\tTSL2591 Irradiancia completa: %d \n", sensor_data.TSL2591.CH0);
         Display_printf(display, 0, 0, "\tTSL2591 Irradiancia IR: %d \n", sensor_data.TSL2591.CH1);
-        Display_printf(display, 0, 0, "\tMCP9808 Factor de radiacion UV: %d (C)\n", sensor_data.VELM6070.lux_UV);
+
+        Display_printf(display, 0, 0, "\tVELM6070 Factor de radiacion UV: %d (C)\n", sensor_data.VELM6070.lux_UV);
         // otros....
 
 
@@ -328,17 +331,126 @@ int16_t TSL2561_READ(I2C_vars * i2c, sensor_data * sensor_data)
         return (NULL);
     }
 
+    // El canal 0 contiene la informacion de el espectro completo
+    //CH0 ADC low data byte
+    //CH0 ADC high data byte
+    // El canal 1 contiene la informacion IR unicamente
+    //CH1 ADC low data byte
+    //CH1 ADC high data byte
+    // Usando la combinacion de esta informacion se obtiene la iluminancia en luxes
+
+
+    // extraccion de los datos de cada canal:
+
+    // canal 0
     temp = i2c->rx[1];
     // desplazamiento al bit de arriba
     temp = temp << 8;
     temp |= i2c->rx[0];
 
+    sensor_data->TSL2561.CH0 = temp;
+
+    // canal 1
     temp = i2c->rx[3];
     // desplazamiento al bit de arriba
     temp = temp << 8;
     temp |= i2c->rx[2];
 
-    sensor_data->TSL2561.lux = temp;
+    sensor_data->TSL2561.CH1 = temp;
+
+    // T, FN and CL package values
+    uint16_t TSL2561_LUX_K1T=(0x0040);  ///< 0.125 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B1T=(0x01f2); ///< 0.0304 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M1T=(0x01be); ///< 0.0272 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K2T=(0x0080); ///< 0.250 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B2T=(0x0214); ///< 0.0325 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M2T=(0x02d1); ///< 0.0440 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K3T=(0x00c0); ///< 0.375 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B3T=(0x023f);  ///< 0.0351 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M3T=(0x037b);  ///< 0.0544 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K4T=(0x0100);  ///< 0.50 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B4T=(0x0270);  ///< 0.0381 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M4T=(0x03fe);  ///< 0.0624 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K5T=(0x0138);  ///< 0.61 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B5T=(0x016f);  ///< 0.0224 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M5T=(0x01fc);  ///< 0.0310 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K6T=(0x019a);  ///< 0.80 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B6T=(0x00d2);  ///< 0.0128 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M6T=(0x00fb);  ///< 0.0153 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K7T=(0x029a);  ///< 1.3 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B7T=(0x0018);  ///< 0.00146 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M7T=(0x0012);  ///< 0.00112 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_K8T=(0x029a);  ///< 1.3 * 2^RATIO_SCALE
+    uint16_t TSL2561_LUX_B8T=(0x0000);  ///< 0.000 * 2^LUX_SCALE
+    uint16_t TSL2561_LUX_M8T=(0x0000);  ///< 0.000 * 2^LUX_SCALE
+
+    unsigned long chScale;
+    unsigned long channel1;
+    unsigned long channel0;
+
+    uint16_t broadband, ir;
+
+    broadband = sensor_data->TSL2561.CH0;
+    ir = sensor_data->TSL2561.CH1;
+
+    /* Make sure the sensor isn't saturated! */
+    uint16_t clipThreshold;
+    clipThreshold = 65000; //TSL2561_CLIPPING_402MS;
+
+    /* Return 65536 lux if the sensor is saturated */
+    if ((broadband > clipThreshold) || (ir > clipThreshold))
+    {
+      return 65536;
+    }
+
+    chScale = (1 << 10); //TSL2561_LUX_CHSCALE
+
+    /* Scale for gain (1x or 16x) */
+    chScale = chScale << 4; // only in default
+
+    /* Scale the channel values */
+    channel0 = (broadband * chScale) >> 10;
+    channel1 = (ir * chScale) >> 10;
+
+    /* Find the ratio of the channel values (Channel1/Channel0) */
+    unsigned long ratio1 = 0;
+    if (channel0 != 0) ratio1 = (channel1 << (9+1)) / channel0; //TSL2561_LUX_RATIOSCALE
+
+    /* round the ratio value */
+    unsigned long ratio = (ratio1 + 1) >> 1;
+
+    unsigned int b, m;
+
+    if ((ratio >= 0) && (ratio <= TSL2561_LUX_K1T))
+      {b=TSL2561_LUX_B1T; m=TSL2561_LUX_M1T;}
+    else if (ratio <= TSL2561_LUX_K2T)
+      {b=TSL2561_LUX_B2T; m=TSL2561_LUX_M2T;}
+    else if (ratio <= TSL2561_LUX_K3T)
+      {b=TSL2561_LUX_B3T; m=TSL2561_LUX_M3T;}
+    else if (ratio <= TSL2561_LUX_K4T)
+      {b=TSL2561_LUX_B4T; m=TSL2561_LUX_M4T;}
+    else if (ratio <= TSL2561_LUX_K5T)
+      {b=TSL2561_LUX_B5T; m=TSL2561_LUX_M5T;}
+    else if (ratio <= TSL2561_LUX_K6T)
+      {b=TSL2561_LUX_B6T; m=TSL2561_LUX_M6T;}
+    else if (ratio <= TSL2561_LUX_K7T)
+      {b=TSL2561_LUX_B7T; m=TSL2561_LUX_M7T;}
+    else if (ratio > TSL2561_LUX_K8T)
+      {b=TSL2561_LUX_B8T; m=TSL2561_LUX_M8T;}
+
+    unsigned long ltemp;
+    ltemp = ((channel0 * b) - (channel1 * m));
+
+    /* Do not allow negative lux value */
+    if (ltemp < 0) ltemp = 0;
+
+    /* Round lsb (2^(LUX_SCALE-1)) */
+    ltemp += (1 << (14-1)); // TSL2561_LUX_LUXSCALE
+
+    /* Strip off fractional portion */
+    uint32_t lux = ltemp >> 14; // TSL2561_LUX_LUXSCALE
+
+    sensor_data->TSL2561.lux = lux;
 
     return (NULL);
 

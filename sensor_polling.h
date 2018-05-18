@@ -28,16 +28,16 @@ typedef struct MCP9808
 
 typedef struct TSL2591
 {
-    int16_t CH0;
-    int16_t CH1;
+    uint16_t CH0;
+    uint16_t CH1;
     float lux;
 } TSL2591;
 
 typedef struct TSL2561
 {
-    int16_t CH0;
-    int16_t CH1;
-    float lux;
+    uint16_t CH0;
+    uint16_t CH1;
+    uint32_t lux;
 } TSL2561;
 
 typedef struct TMP007
