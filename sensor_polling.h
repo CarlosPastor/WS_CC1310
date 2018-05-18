@@ -2,14 +2,7 @@
 // Data strucure definitions
 //
 
-#include <stdint.h>
-#include <stddef.h>
-#include <unistd.h>
-
-/* Driver Header files */
-#include <ti/drivers/GPIO.h>
 #include <ti/drivers/I2C.h>
-#include <ti/display/Display.h>
 
 /* Example/Board Header files */
 #include "Board.h"
@@ -19,8 +12,8 @@
 typedef struct I2C_vars
 {
 
-    uint8_t         txBuffer[10];
-    uint8_t         rxBuffer[10];
+    uint8_t         tx[10];
+    uint8_t         rx[10];
     I2C_Handle      i2c;
     I2C_Params      i2cParams;
     I2C_Transaction i2cTransaction;
