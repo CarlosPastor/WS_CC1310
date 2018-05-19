@@ -23,6 +23,7 @@
 // stacksize for the thread
 #define TASKSTACKSIZE       640
 
+int16_t TMP007_READ(I2C_vars * i2c, sensor_data * sensor_data);
 
 uint8_t VELM6070_INIT(I2C_vars * i2c, sensor_data * sensor_data);
 int16_t VELM6070_READ(I2C_vars * i2c, sensor_data * sensor_data);
@@ -100,22 +101,22 @@ int16_t MCP9808_READ(I2C_vars * i2c, sensor_data * sensor_data);
 //////////////////////////////////
 #define TMP007_I2C_ADR      0x40
 
-#define TMP007_CMMND        0x80      /* default command */
+#define TMP007_CMMND        0x80           /* default command */
 
-#define TMP007_TEMP       0x01           /* Object Temp Result Register */
-#define TMP007_TEMP_LEN   2           /* Object Temp Result Register */
+#define TMP007_DIE_TEMP     0x0001  /* Die Temp Result Register */
+#define TMP007_TEMP_LEN   2           
 
-#define TMP007_CONFIG       0x02           /* Object Temp Result Register */
-#define TMP007_CONFIG_LEN   2           /* Object Temp Result Register */
+#define TMP007_CONFIG       0x02           /* Configuration Register */
+#define TMP007_CONFIG_LEN   2           
 
-#define TMP007_OBJ_TEMP     0x03        /* object temp result regs */
-#define TMP007_OBJ_LEN      2        /* object temp result regs */
+#define TMP007_OBJ_TEMP     0x0003  /* Object Temp Result Register */
+#define TMP007_OBJ_LEN      2        
 
-#define TMP007_STATUS       0x04           /* Object Temp Result Register */
-#define TMP007_STATUS_LEN   2           /* Object Temp Result Register */
+#define TMP007_STATUS       0x04           /* Status Register */
+#define TMP007_STATUS_LEN   2           
 
-#define TMP007_STATUS_ME       0x05           /* Object Temp Result Register */
-#define TMP007_STATUS_ME_LEN   2           /* Object Temp Result Register */
+#define TMP007_STATUS_ME       0x05        /* Mask and enable Register */
+#define TMP007_STATUS_ME_LEN   2           
 
 //////////////////////////////////
 // SENSOR VELM6070              //
@@ -193,10 +194,13 @@ void *mainThread(void *arg0)
         TSL2561_READ(&I2C_vars, &sensor_data);
         TSL2591_READ(&I2C_vars, &sensor_data);
         MCP9808_READ(&I2C_vars, &sensor_data);
+        TMP007_READ(&I2C_vars, &sensor_data);
 
-        // sensores de temperatura
         Display_printf(display, 0, 0, "DATOS DE LOS SENSORES:\n ");
+        // sensores de temperatura
         Display_printf(display, 0, 0, "\tMCP9808 TEMPERATURE: %d C \n", sensor_data.MCP9808.temp);
+
+        Display_printf(display, 0, 0, "\tTMP007 TEMPERATURE: %d C \n", sensor_data.TMP007.temp_IR);
         // sensores de luminosidad
         Display_printf(display, 0, 0, "\tTSL2561 Intensidad de luz: %d lx \n", sensor_data.TSL2561.lux);
         Display_printf(display, 0, 0, "\tTSL2561 Irradiancia completa: %d \n", sensor_data.TSL2561.CH0);
@@ -220,6 +224,49 @@ void *mainThread(void *arg0)
     Display_printf(display, 0, 0, "I2C closed!\n");
 
     return (NULL);
+
+}
+
+int16_t TMP007_READ(I2C_vars * i2c, sensor_data * sensor_data)
+{
+    volatile int16_t temp;
+
+    i2c->tx[0] = TMP007_OBJ_TEMP;     /* Indico donde quiero leer */
+
+    i2c->i2cTransaction.slaveAddress = TMP007_I2C_ADR;  /* Indico address */
+    i2c->i2cTransaction.writeBuf = i2c->tx;
+    i2c->i2cTransaction.writeCount = 1;
+    i2c->i2cTransaction.readBuf = i2c->rx;
+    i2c->i2cTransaction.readCount = 2;
+
+    if (I2C_transfer(i2c->i2c, &i2c->i2cTransaction))
+        ;
+    else
+    {
+        Display_printf(display, 0, 0, "I2C Bus fault TMP007\n");
+        return (NULL);
+    }
+
+    /* Extract degrees ºC from the received data; see TMP102 datasheet */
+    temp = (i2c->rx[0] << 6) | (i2c->rx[1] >> 2);
+
+    /*
+    * If the MSB is set '1', then we have a 2's complement
+    * negative value which needs to be sign extended
+    */
+    if (i2c->rx[0] & 0x80) {
+        temp |= 0xF000;
+    }
+    /*
+    * For simplicity, divide the temperature value by 32 to get rid of
+    * the decimal precision; see TI's TMP007 datasheet
+    */
+    temp /= 32;
+
+
+        temp |= i2c->rx[0];
+        sensor_data->TMP007.temp_IR = temp;
+        return (NULL);
 
 }
 
